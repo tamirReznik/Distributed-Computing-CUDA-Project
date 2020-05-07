@@ -28,7 +28,7 @@ How to run:
 	1) use the terminal:
 			- mpicc [C_FILE_NAME] -lm -o [EXECUTABLE_NAME] 		|command to compile c files that are not sequential!
 			
-			- mpiexe -np [#NUMBER_OF_PROCESSES] [EXECUTABLE_FILE_NAME] to run the parallel program file
+			- mpiexe -np [#NUMBER_OF_PROCESSES] [EXECUTABLE_FILE_NAME] [INPUT_FILE_PATH]to run the parallel program file
 			
 	2) use the eclipse
 	

@@ -18,131 +18,33 @@ int main(int argc, char *argv[]) {
 	int coord[2], source[2], dest[2];
 	MPI_Comm comm;
 	MPI_Status status;
-	cuboid myCuboid;
+	cuboid myCuboid, *cuboidArray = NULL;
 	MPI_Datatype cuboidTransfer;
 
 	init(&argc, argv, &rank, &size, &lineAndColSize);
-	cuboid cuboidArray[size];
 
 // Create MPI user data type for cuboid
 	createDataType(myCuboid, &cuboidTransfer);
 
 // A two-dimensional cylinder of 'size' processes in a square_root(size) grid
-	createCartesian(&lineAndColSize, &comm);
+	createCartesian(lineAndColSize, &comm);
 
 //	Only master read from file
-	if (rank == MASTER)
+	if (rank == MASTER) {
+		allocateCuboidArray(size, &cuboidArray);
 		readFromFile(cuboidArray, size, argv);
+	}
 
-	mpiShearSortPreparations(&rank, coord, &id, source, dest, argv, &myCuboid,
+	mpiShearSortPreparations(rank, coord, &id, source, dest, argv, &myCuboid,
 			&cuboidTransfer, &comm, cuboidArray);
 
-	shearSort(&lineAndColSize, &id, &myCuboid, coord, dest, source,
+	shearSort(lineAndColSize, id, &myCuboid, coord, dest, source,
 			&cuboidTransfer, &comm, &status, transitionFunction);
 
-	getResultsAndWriteToFile(&size, &id, &lineAndColSize, &myCuboid,
+	getResultsAndWriteToFile(size, id, lineAndColSize, &myCuboid,
 			&cuboidTransfer, &comm);
 
 	return properExit();
-}
-
-void getResultsAndWriteToFile(int *size, int *id, int *lineAndColSize,
-		cuboid *myCuboid, MPI_Datatype *cuboidTransfer, MPI_Comm *comm) {
-	cuboid *result;
-
-	allocateResultArray(*size, &result);
-
-	MPI_Gather(myCuboid, 1, *cuboidTransfer, result, 1, *cuboidTransfer, MASTER,
-			*comm);
-
-	if (*id == MASTER)
-		writeResultToFile(*lineAndColSize, result);
-
-	free(result);
-}
-
-int properExit() {
-	fflush(stdout);
-	MPI_Finalize();
-	return 0;
-}
-
-void shearSort(int *n, int *id, cuboid *myCuboid, int *coord, int *dest,
-		int *source, MPI_Datatype *cuboidTransfer, MPI_Comm *comm,
-		MPI_Status *status,
-		void (**transFunc)(cuboid *myCuboid, int *coord, int dest, int source,
-				MPI_Datatype *cuboidTransfer, MPI_Comm *comm,
-				MPI_Status *status, int id,
-				void (*compareAndSwap_1)(cuboid *myCuboid, cuboid *tempCuboid),
-				void (*compareAndSwap_2)(cuboid *myCuboid, cuboid *tempCuboid))) {
-	int i;
-	int numOfIteration = (int) (2 * log(*n) / log(2) + 1);
-	for (i = 0; i < numOfIteration; ++i)
-		oddEven(*n, myCuboid, coord, dest[i % 2], source[i % 2], cuboidTransfer,
-				comm, status, transFunc[i % 2], *id);
-}
-
-void mpiShearSortPreparations(int *rank, int *coord, int *id, int *source,
-		int *dest, char **argv, cuboid *myCuboid, MPI_Datatype *cuboidTransfer,
-		MPI_Comm *comm, cuboid *cuboidArray) {
-
-	MPI_Scatter(cuboidArray, 1, *cuboidTransfer, myCuboid, 1, *cuboidTransfer,
-	MASTER,
-	MPI_COMM_WORLD);
-
-	// Each process displays its rank and cartesian coordinates
-	MPI_Cart_coords(*comm, *rank, 2, coord);
-
-	MPI_Cart_rank(*comm, coord, id);
-
-	MPI_Cart_shift(*comm, 1, 1, &source[1], &dest[1]);
-	if (coord[1] % 2 == 0)
-		MPI_Cart_shift(*comm, 0, 1, &source[0], &dest[0]);
-	else
-		MPI_Cart_shift(*comm, 0, 1, &dest[0], &source[0]);
-
-}
-
-void allocateResultArray(int size, cuboid **result) {
-	*result = (cuboid*) malloc(size * sizeof(cuboid));
-	if (*result == NULL) {
-		printf("Memory not allocated.\n");
-		exit(0);
-	}
-}
-
-void writeResultToFile(int n, cuboid *result) {
-	int i, j;
-
-	FILE *output = fopen("result.dat", "w+t");
-	if (output == NULL) {
-		printf("Cannot open result.dat file...\n");
-		exit(1);
-	}
-	//write to file...
-	for (i = 0; i < n; ++i)
-		for (j = 0; j < n; ++j)
-			if (i % 2 == 0)
-				fprintf(output, "%d  ", result[j * n + i].id);
-			else
-				fprintf(output, "%d  ", result[(n - j - 1) * n + i].id);
-
-	if (fclose(output) != 0) {
-		printf("Cannot close result.dat file...\n");
-		exit(1);
-	}
-
-}
-
-//Create Cartesian mpi group via mpi library
-void createCartesian(int *n, MPI_Comm *comm) {
-	int dim[2], period[2] = { 0 }, reorder;
-	dim[0] = *n;
-	dim[1] = *n;
-	period[0] = 0;
-	period[1] = 0;
-	reorder = 0;
-	MPI_Cart_create(MPI_COMM_WORLD, 2, dim, period, reorder, comm);
 }
 
 void init(int *argc, char **argv, int *rank, int *size, int *n) {
@@ -150,7 +52,6 @@ void init(int *argc, char **argv, int *rank, int *size, int *n) {
 	MPI_Comm_rank(MPI_COMM_WORLD, rank);
 	MPI_Comm_size(MPI_COMM_WORLD, size);
 	*n = sqrt(*size);
-//	*numOfIteration = (int) (2 * log(*n) / log(2) + 1);
 
 	if (*size != (*n) * (*n) || *argc != 2) {
 
@@ -172,6 +73,25 @@ void createDataType(cuboid myCuboid, MPI_Datatype *cuboidTransfer) {
 	MPI_Type_create_struct(3, blocklen, disp, type, cuboidTransfer);
 	MPI_Type_commit(cuboidTransfer);
 
+}
+
+//Create Cartesian mpi group via mpi library
+void createCartesian(int lineAndRowSize, MPI_Comm *comm) {
+	int dim[2], period[2] = { 0 }, reorder;
+	dim[0] = lineAndRowSize;
+	dim[1] = lineAndRowSize;
+	period[0] = 0;
+	period[1] = 0;
+	reorder = 0;
+	MPI_Cart_create(MPI_COMM_WORLD, 2, dim, period, reorder, comm);
+}
+
+void allocateCuboidArray(int size, cuboid **result) {
+	*result = (cuboid*) malloc(size * sizeof(cuboid));
+	if (*result == NULL) {
+		printf("Memory not allocated.\n");
+		exit(0);
+	}
 }
 
 void readFromFile(cuboid *cuboidArray, int size, char **fileName) {
@@ -197,12 +117,99 @@ void readFromFile(cuboid *cuboidArray, int size, char **fileName) {
 	}
 }
 
+void mpiShearSortPreparations(int rank, int *coord, int *id, int *source,
+		int *dest, char **argv, cuboid *myCuboid, MPI_Datatype *cuboidTransfer,
+		MPI_Comm *comm, cuboid *cuboidArray) {
+
+	MPI_Scatter(cuboidArray, 1, *cuboidTransfer, myCuboid, 1, *cuboidTransfer,
+	MASTER,
+	MPI_COMM_WORLD);
+
+	// Each process displays its rank and cartesian coordinates
+	MPI_Cart_coords(*comm, rank, 2, coord);
+
+	MPI_Cart_rank(*comm, coord, id);
+
+	MPI_Cart_shift(*comm, 1, 1, &source[1], &dest[1]);
+	if (coord[1] % 2 == 0)
+		MPI_Cart_shift(*comm, 0, 1, &source[0], &dest[0]);
+	else
+		MPI_Cart_shift(*comm, 0, 1, &dest[0], &source[0]);
+
+}
+
+void shearSort(int n, int id, cuboid *myCuboid, int *coord, int *dest,
+		int *source, MPI_Datatype *cuboidTransfer, MPI_Comm *comm,
+		MPI_Status *status,
+		void (**transFunc)(cuboid *myCuboid, int *coord, int dest, int source,
+				MPI_Datatype *cuboidTransfer, MPI_Comm *comm,
+				MPI_Status *status, int id,
+				void (*compareAndSwap_1)(cuboid *myCuboid, cuboid *tempCuboid),
+				void (*compareAndSwap_2)(cuboid *myCuboid, cuboid *tempCuboid))) {
+	int i;
+	int numOfIteration = (int) (2 * log(n) / log(2) + 1);
+	for (i = 0; i < numOfIteration; ++i)
+		oddEven(n, myCuboid, coord, dest[i % 2], source[i % 2], cuboidTransfer,
+				comm, status, transFunc[i % 2], id);
+}
+
+
+//Gether the result to master buffer and write it to file
+void getResultsAndWriteToFile(int size, int id, int lineAndColSize,
+		cuboid *myCuboid, MPI_Datatype *cuboidTransfer, MPI_Comm *comm) {
+	cuboid *result = NULL;
+
+	if (id == MASTER)
+		allocateCuboidArray(size, &result);
+
+	MPI_Gather(myCuboid, 1, *cuboidTransfer, result, 1, *cuboidTransfer, MASTER,
+			*comm);
+
+	if (id == MASTER)
+		writeResultToFile(lineAndColSize, result);
+
+	free(result);
+}
+
+
+int properExit() {
+	fflush(stdout);
+	MPI_Finalize();
+	return 0;
+}
+
+
+void writeResultToFile(int n, cuboid *result) {
+	int i, j;
+
+	FILE *output = fopen("result.dat", "w+t");
+	if (output == NULL) {
+		printf("Cannot open result.dat file...\n");
+		exit(1);
+	}
+	//write to file...
+	for (i = 0; i < n; ++i)
+		for (j = 0; j < n; ++j)
+			if (i % 2 == 0)
+				fprintf(output, "%d  ", result[j * n + i].id);
+			else
+				fprintf(output, "%d  ", result[(n - j - 1) * n + i].id);
+
+	if (fclose(output) != 0) {
+		printf("Cannot close result.dat file...\n");
+		exit(1);
+	}
+
+}
+
+
 void printCuboidArray(int size, cuboid *cuboidArray) {
 	int i;
 	for (i = 0; i < size; ++i)
 		printf("id: %d, height: %f vol: %f\n", cuboidArray[i].id,
 				cuboidArray[i].height, cuboidArray[i].vol);
 }
+
 
 //set myCuboid to be the minimum cuboid between the two
 void getMinCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
@@ -217,6 +224,7 @@ void getMinCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
 
 }
 
+
 //set myCuboid to be the maximum cuboid between the two
 void getMaxCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
 	if (myCuboid->vol < tempCuboid->vol)
@@ -228,11 +236,13 @@ void getMaxCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
 			replaceMyCuboid(myCuboid, tempCuboid);
 }
 
+
 void replaceMyCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
 	myCuboid->id = tempCuboid->id;
 	myCuboid->height = tempCuboid->height;
 	myCuboid->vol = tempCuboid->vol;
 }
+
 
 //odd-Even for column in the matrix
 void colTransaction(cuboid *myCuboid, int *coord, int dest, int source,
@@ -260,6 +270,7 @@ void colTransaction(cuboid *myCuboid, int *coord, int dest, int source,
 
 }
 
+
 //odd-Even for line in the matrix
 void lineTransaction(cuboid *myCuboid, int *coord, int dest, int source,
 		MPI_Datatype *cuboidTransfer, MPI_Comm *comm, MPI_Status *status,
@@ -285,6 +296,7 @@ void lineTransaction(cuboid *myCuboid, int *coord, int dest, int source,
 	}
 
 }
+
 
 //generic odd-Even for cold and rows
 void oddEven(int n, cuboid *myCuboid, int *coord, int dest, int source,
