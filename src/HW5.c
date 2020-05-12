@@ -125,6 +125,10 @@ void mpiShearSortPreparations(int rank, int *coord, int *id, int *source,
 	MASTER,
 	MPI_COMM_WORLD);
 
+	//no need in cuboidArray anymore
+	if (rank == MASTER)
+		free(cuboidArray);
+
 	// Each process displays its rank and cartesian coordinates
 	MPI_Cart_coords(*comm, rank, 2, coord);
 
@@ -153,7 +157,6 @@ void shearSort(int n, int id, cuboid *myCuboid, int *coord, int *dest,
 				comm, status, transFunc[i % 2], id);
 }
 
-
 //Gether the result to master buffer and write it to file
 void getResultsAndWriteToFile(int size, int id, int lineAndColSize,
 		cuboid *myCuboid, MPI_Datatype *cuboidTransfer, MPI_Comm *comm) {
@@ -171,13 +174,11 @@ void getResultsAndWriteToFile(int size, int id, int lineAndColSize,
 	free(result);
 }
 
-
 int properExit() {
 	fflush(stdout);
 	MPI_Finalize();
 	return 0;
 }
-
 
 void writeResultToFile(int n, cuboid *result) {
 	int i, j;
@@ -202,14 +203,12 @@ void writeResultToFile(int n, cuboid *result) {
 
 }
 
-
 void printCuboidArray(int size, cuboid *cuboidArray) {
 	int i;
 	for (i = 0; i < size; ++i)
 		printf("id: %d, height: %f vol: %f\n", cuboidArray[i].id,
 				cuboidArray[i].height, cuboidArray[i].vol);
 }
-
 
 //set myCuboid to be the minimum cuboid between the two
 void getMinCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
@@ -224,7 +223,6 @@ void getMinCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
 
 }
 
-
 //set myCuboid to be the maximum cuboid between the two
 void getMaxCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
 	if (myCuboid->vol < tempCuboid->vol)
@@ -236,13 +234,11 @@ void getMaxCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
 			replaceMyCuboid(myCuboid, tempCuboid);
 }
 
-
 void replaceMyCuboid(cuboid *myCuboid, cuboid *tempCuboid) {
 	myCuboid->id = tempCuboid->id;
 	myCuboid->height = tempCuboid->height;
 	myCuboid->vol = tempCuboid->vol;
 }
-
 
 //odd-Even for column in the matrix
 void colTransaction(cuboid *myCuboid, int *coord, int dest, int source,
@@ -270,7 +266,6 @@ void colTransaction(cuboid *myCuboid, int *coord, int dest, int source,
 
 }
 
-
 //odd-Even for line in the matrix
 void lineTransaction(cuboid *myCuboid, int *coord, int dest, int source,
 		MPI_Datatype *cuboidTransfer, MPI_Comm *comm, MPI_Status *status,
@@ -296,7 +291,6 @@ void lineTransaction(cuboid *myCuboid, int *coord, int dest, int source,
 	}
 
 }
-
 
 //generic odd-Even for cold and rows
 void oddEven(int n, cuboid *myCuboid, int *coord, int dest, int source,
