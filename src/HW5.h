@@ -11,7 +11,7 @@ typedef struct {
 
 void getResultsAndWriteToFile(int size, int id, int lineAndColSize,
 		cuboid *myCuboid, MPI_Datatype *cuboidTransfer, MPI_Comm *comm);
-void readFromFile(cuboid *cuboidArray, int size, char **fileName);
+void readFromFile(cuboid **cuboidArray, int size, char **fileName);
 void printCuboidArray(int size, cuboid *cuboidArray);
 void lineTransaction(cuboid *myCuboid, int *coord, int dest, int source,
 		MPI_Datatype *cuboidTransfer, MPI_Comm *comm, MPI_Status *status,

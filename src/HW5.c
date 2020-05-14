@@ -30,10 +30,8 @@ int main(int argc, char *argv[]) {
 	createCartesian(lineAndColSize, &comm);
 
 //	Only master read from file
-	if (rank == MASTER) {
-		allocateCuboidArray(size, &cuboidArray);
-		readFromFile(cuboidArray, size, argv);
-	}
+	if (rank == MASTER)
+		readFromFile(&cuboidArray, size, argv);
 
 	mpiShearSortPreparations(rank, coord, &id, source, dest, argv, &myCuboid,
 			&cuboidTransfer, &comm, cuboidArray);
@@ -94,10 +92,13 @@ void allocateCuboidArray(int size, cuboid **result) {
 	}
 }
 
-void readFromFile(cuboid *cuboidArray, int size, char **fileName) {
+void readFromFile(cuboid **cuboidArray, int size, char **fileName) {
 	int i;
 	float width, length;
+//	allocate array of cuboid
+	allocateCuboidArray(size, cuboidArray);
 
+//	open input file and read to cuboid array
 	FILE *cuboidFile = fopen(fileName[1], "r");
 	if (cuboidFile == NULL) {
 		fprintf(stderr, "line %d -->Cannot open file Try again later.\n",
@@ -106,14 +107,14 @@ void readFromFile(cuboid *cuboidArray, int size, char **fileName) {
 		exit(1);
 	}
 	for (i = 0; i < size; ++i) {
-		if (fscanf(cuboidFile, "%d%f%f%f", &cuboidArray[i].id, &length, &width,
-				&cuboidArray[i].height) != 4) {
+		if (fscanf(cuboidFile, "%d%f%f%f", &(*cuboidArray)[i].id, &length,
+				&width, &(*cuboidArray)[i].height) != 4) {
 			fprintf(stderr,
 					"line %d -->Cannot read specific cuboid from file.\n",
 					__LINE__);
 			exit(1);
 		};
-		cuboidArray[i].vol = length * cuboidArray[i].height * width;
+		(*cuboidArray)[i].vol = length * (*cuboidArray)[i].height * width;
 	}
 }
 
